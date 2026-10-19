@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Jarvis</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;700&family=Rajdhani:wght@500&display=swap">
+<style>
+:root{--bg:#000;--blue:#2bb6ff;--dim:#0b4f8f;--ink:#bfe9ff;color-scheme:dark;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:Rajdhani,"Segoe UI",system-ui,sans-serif;font-size:18px}
+main{min-height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;padding:12px;box-sizing:border-box}
+#stage{position:relative;width:min(94vw,440px);aspect-ratio:1}
+canvas{display:block}
+#orb{position:absolute;left:50%;top:50%;width:33%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;border:2px solid var(--blue);background:#00060d;color:var(--blue);font:700 clamp(14px,4.6vw,20px) Orbitron,system-ui,sans-serif;letter-spacing:.14em;cursor:pointer;padding:0}
+#orb:focus-visible{outline:2px solid var(--ink);outline-offset:4px}
+p{margin:0;text-align:center;max-width:34ch;min-height:1.4em}
+#you{color:var(--dim);color:#5aa9de}
+#bot{color:var(--ink);font-size:20px}
+#hud{display:flex;gap:10px;width:min(94vw,440px);opacity:0;transform:translateY(8px);transition:opacity .4s,transform .4s;pointer-events:none}
+#hud.on{opacity:1;transform:none}
+#hud div{flex:1;border:1px solid var(--dim);padding:8px 6px;text-align:center;font-size:15px;color:#5aa9de}
+#hud b{display:block;font:500 17px Orbitron,system-ui,sans-serif;color:var(--blue);margin-top:2px}
+.type{display:flex;gap:8px;width:min(94vw,440px)}
+input{flex:1;min-width:0;background:#00060d;border:1px solid var(--dim);color:var(--ink);padding:10px;font:inherit}
+input:focus-visible,button.go:focus-visible{outline:2px solid var(--blue)}
+button.go{background:transparent;border:1px solid var(--blue);color:var(--blue);padding:0 16px;font:inherit;cursor:pointer}
+</style>
+</head>
+<body>
+<main>
+  <div id="stage">
+    <canvas id="c" aria-hidden="true"></canvas>
+    <button id="orb" aria-label="Hablar con Jarvis">JARVIS</button>
+  </div>
+  <p id="you">Toca el círculo y habla</p>
+  <p id="bot">Prueba: “¿qué hora es?” o “muéstrame tu interfaz”</p>
+  <div class="type">
+    <button class="go" id="mic" style="flex:1;padding:10px">Hablar</button>
+    <button class="go" id="test" style="flex:1;padding:10px">Probar voz</button>
+  </div>
+  <section id="hud" aria-label="Panel">
+    <div>Hora<b id="h-time">--:--</b></div>
+    <div>Fecha<b id="h-date">--</b></div>
+    <div>Batería<b id="h-bat">--</b></div>
+  </section>
+  <div class="type">
+    <input id="txt" type="text" placeholder="¿Qué hora es?" aria-label="Escribe un comando">
+    <button class="go" id="go">Enviar</button>
+  </div>
+</main>
+<script>
+var c=document.getElementById('c'),x=c.getContext('2d'),S=0,D=Math.min(window.devicePixelRatio||1,2);
+var state='idle',amp=0,t=0;
+var reduce=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function size(){S=c.parentNode.clientWidth;c.width=S*D;c.height=S*D;c.style.width=S+'px';c.style.height=S+'px';x.setTransform(D,0,0,D,0,0);}
+size();window.addEventListener('resize',size);
+var BLUE='#2bb6ff',DIM='#0b4f8f';
+function arcs(r,n,gap,rot,color,w){
+  var step=Math.PI*2/n;
+  x.strokeStyle=color;x.lineWidth=w;
+  for(var i=0;i<n;i++){x.beginPath();x.arc(S/2,S/2,r,rot+i*step,rot+i*step+step*(1-gap));x.stroke();}
+}
+function frame(){
+  t+=reduce?0:0.016;
+  var target=state==='speaking'?0.55+0.45*Math.abs(Math.sin(t*9)*Math.cos(t*5.3)):state==='listening'?0.3+0.12*Math.sin(t*4):0.07;
+  amp+=(target-amp)*0.12;
+  x.clearRect(0,0,S,S);
+  x.shadowColor=BLUE;x.shadowBlur=state==='idle'?4:10;
+  x.strokeStyle=DIM;x.lineWidth=1;x.beginPath();x.arc(S/2,S/2,S*0.485,0,Math.PI*2);x.stroke();
+  for(var i=0;i<120;i++){
+    var a=i/120*Math.PI*2+t*0.1,l=i%5===0?S*0.02:S*0.01;
+    x.strokeStyle=DIM;x.beginPath();
+    x.moveTo(S/2+Math.cos(a)*S*0.47,S/2+Math.sin(a)*S*0.47);
+    x.lineTo(S/2+Math.cos(a)*(S*0.47-l),S/2+Math.sin(a)*(S*0.47-l));x.stroke();
+  }
+  var n=96;
+  x.strokeStyle=BLUE;x.lineWidth=2;
+  for(var j=0;j<n;j++){
+    var b=j/n*Math.PI*2-t*0.3;
+    var w=0.5+0.5*Math.sin(j*1.7+t*6)*Math.cos(j*0.6-t*3);
+    var len=S*(0.012+0.11*amp*Math.abs(w));
+    var r0=S*0.335;
+    x.beginPath();
+    x.moveTo(S/2+Math.cos(b)*r0,S/2+Math.sin(b)*r0);
+    x.lineTo(S/2+Math.cos(b)*(r0+len),S/2+Math.sin(b)*(r0+len));x.stroke();
+  }
+  arcs(S*0.29,3,0.35,t*0.5,DIM,3);
+  arcs(S*0.245,6,0.4,-t*0.8,BLUE,2);
+  x.strokeStyle=BLUE;x.lineWidth=1.5;x.globalAlpha=0.5+0.5*amp;
+  x.beginPath();x.arc(S/2,S/2,S*0.2+S*0.012*amp,0,Math.PI*2);x.stroke();x.globalAlpha=1;
+  requestAnimationFrame(frame);
+}
+frame();
+
+var you=document.getElementById('you'),bot=document.getElementById('bot'),hud=document.getElementById('hud');
+var tmr=null;
+function say(s){
+  bot.textContent=s;
+  clearTimeout(tmr);
+  if('speechSynthesis' in window){
+    speechSynthesis.cancel();
+    var u=new SpeechSynthesisUtterance(s);u.lang='es-MX';
+    u.onstart=function(){state='speaking';};
+    u.onend=u.onerror=function(){state='idle';};
+    speechSynthesis.speak(u);
+  }else{
+    state='speaking';tmr=setTimeout(function(){state='idle';},2200);
+  }
+}
+var jokes=['¿Por qué los pájaros vuelan hacia el sur? Porque caminando tardarían mucho.','Tengo un chiste sobre la batería, pero se me acabó la carga.'];
+var batt=null;
+function handle(raw){
+  var n=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/jarvis/g,'').trim();
+  if(/hora/.test(n)){say('Son las '+new Date().toLocaleTimeString('es',{hour:'numeric',minute:'2-digit'})+'.');}
+  else if(/fecha|que dia|dia es/.test(n)){say('Hoy es '+new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})+'.');}
+  else if(/interfaz|panel|muestrame/.test(n)){hud.classList.add('on');say('Aquí está mi interfaz.');}
+  else if(/oculta|cierra|quita/.test(n)){hud.classList.remove('on');say('Listo, la oculté.');}
+  else if(/bateria/.test(n)){say(batt?'Tu batería está al '+Math.round(batt.level*100)+' por ciento.':'No puedo leer la batería en este navegador.');}
+  else if(/chiste/.test(n)){say(jokes[Math.floor(Math.random()*jokes.length)]);}
+  else if(/hola|buenas|que tal/.test(n)){say('Hola. Aquí estoy.');}
+  else{say('Todavía no sé hacer eso. Con una conexión a Claude podría responderte.');}
+}
+var rec=null;
+function listen(){
+  var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){you.textContent='Este navegador no permite voz. Escribe abajo.';return;}
+  if(state==='listening'&&rec){rec.stop();return;}
+  if('speechSynthesis' in window){speechSynthesis.cancel();}
+  if('speechSynthesis' in window){speechSynthesis.speak(new SpeechSynthesisUtterance(''));}
+  rec=new SR();rec.lang='es-MX';rec.interimResults=false;
+  rec.onstart=function(){state='listening';you.textContent='Te escucho…';};
+  rec.onresult=function(e){var s=e.results[0][0].transcript;you.textContent='“'+s+'”';handle(s);};
+  rec.onerror=function(e){state='idle';var k=e&&e.error;you.textContent=(k==='not-allowed'||k==='service-not-allowed')?'Bloqueado: el navegador no deja usar el micrófono aquí ('+k+').':k==='no-speech'?'No te oí. Toca y habla otra vez.':k==='network'?'El reconocimiento de voz necesita internet.':'Error de voz: '+k;};
+  rec.onend=function(){if(state==='listening'){state='idle';}};
+  try{rec.start();}catch(err){you.textContent='No pude usar el micrófono. Escribe abajo.';}
+}
+document.getElementById('orb').addEventListener('click',listen);
+document.getElementById('mic').addEventListener('click',listen);
+document.getElementById('test').addEventListener('click',function(){you.textContent='Si no oyes nada, sube el volumen y quita el modo silencio.';say('Hola, soy Jarvis. ¿Me escuchas?');});
+var txt=document.getElementById('txt');
+function send(){var s=txt.value.trim();if(!s){return;}you.textContent='“'+s+'”';handle(s);txt.value='';}
+document.getElementById('go').addEventListener('click',send);
+txt.addEventListener('keydown',function(e){if(e.key==='Enter'){send();}});
+
+function tick(){
+  var d=new Date();
+  document.getElementById('h-time').textContent=d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('h-date').textContent=d.toLocaleDateString('es',{day:'numeric',month:'short'});
+  document.getElementById('h-bat').textContent=batt?Math.round(batt.level*100)+'%':'--';
+}
+tick();setInterval(tick,1000);
+try{if(navigator.getBattery){navigator.getBattery().then(function(b){batt=b;tick();});}}catch(e){}
+</script>
+</body>
+</html>
