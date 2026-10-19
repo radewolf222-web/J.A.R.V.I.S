@@ -34,7 +34,7 @@ button.go{background:transparent;border:1px solid var(--blue);color:var(--blue);
     <button id="orb" aria-label="Hablar con Jarvis">JARVIS</button>
   </div>
   <p id="you">Toca el círculo y habla</p>
-  <p id="bot">Prueba: “¿qué hora es?” o “muéstrame tu interfaz”</p>
+  <p id="bot">Di “ayuda” para ver lo que sé hacer</p>
   <div class="type">
     <button class="go" id="mic" style="flex:1;padding:10px">Hablar</button>
     <button class="go" id="test" style="flex:1;padding:10px">Probar voz</button>
@@ -108,18 +108,52 @@ function say(s){
     state='speaking';tmr=setTimeout(function(){state='idle';},2200);
   }
 }
-var jokes=['¿Por qué los pájaros vuelan hacia el sur? Porque caminando tardarían mucho.','Tengo un chiste sobre la batería, pero se me acabó la carga.'];
+var jokes=['¿Por qué los pájaros vuelan hacia el sur? Porque caminando tardarían mucho.','Tengo un chiste sobre la batería, pero se me acabó la carga.','¿Qué le dice un cero a otro cero? Nada, no valemos nada.'];
 var batt=null;
+var apps={youtube:'https://www.youtube.com/',google:'https://www.google.com/',whatsapp:'https://wa.me/',mapas:'https://maps.google.com/',maps:'https://maps.google.com/',gmail:'https://mail.google.com/',correo:'https://mail.google.com/',tiktok:'https://www.tiktok.com/',instagram:'https://www.instagram.com/',facebook:'https://www.facebook.com/',spotify:'https://open.spotify.com/',netflix:'https://www.netflix.com/'};
+function go(name,url){say('Abriendo '+name+'.');setTimeout(function(){window.location.href=url;},1800);}
 function handle(raw){
-  var n=raw.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/jarvis/g,'').trim();
+  var low=raw.toLowerCase().replace(/jarvis/g,'').trim();
+  var n=low.normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  var m;
+  if(/ayuda|que puedes hacer|que sabes hacer/.test(n)){say('Puedo decirte la hora y la fecha, abrir YouTube, Google, WhatsApp y otras apps, buscar en Google o en YouTube, poner un temporizador, hacer cuentas, tirar un dado y contar chistes.');return;}
+  if(/temporizador|cuenta regresiva|avisame en/.test(n)&&(m=n.match(/(\d+)\s*(segundo|minuto|hora)/))){
+    var v=parseInt(m[1],10),mult={segundo:1000,minuto:60000,hora:3600000}[m[2]];
+    if(v*mult>21600000){say('Ese tiempo es demasiado largo. El máximo es de seis horas.');return;}
+    say('Listo, te aviso en '+v+' '+m[2]+(v>1?'s':'')+'.');
+    setTimeout(function(){say('Se acabó el tiempo.');},v*mult);return;
+  }
+  if(/cuanto es|cuanto son|cuanto da|calcula/.test(n)){
+    var ex=n.replace(/cuanto es|cuanto son|cuanto da|calcula/g,'').replace(/dividido entre|dividido por|entre/g,'/').replace(/\bmas\b/g,'+').replace(/\bmenos\b/g,'-').replace(/multiplicado por|\bpor\b|\bx\b/g,'*').replace(/,/g,'.').replace(/[^0-9+\-*\/. ]/g,'');
+    if(/^\s*\d+(\.\d+)?(\s*[+\-*\/]\s*\d+(\.\d+)?)+\s*$/.test(ex)){
+      var r=Function('"use strict";return ('+ex+')')();
+      if(isFinite(r)){say('El resultado es '+Math.round(r*1000000)/1000000+'.');return;}
+    }
+    say('No pude hacer esa cuenta. Prueba: cuánto es 5 más 3.');return;
+  }
+  if(/youtube/.test(n)&&(m=low.match(/(?:busca|buscar|pon|ponme|reproduce)\s+(?:en\s+youtube\s+)?(.+)/))){
+    var q=m[1].replace(/\s*en youtube\s*/,' ').trim();
+    go('YouTube','https://www.youtube.com/results?search_query='+encodeURIComponent(q));return;
+  }
+  if((m=low.match(/(?:busca|buscar|googlea|investiga)(?:\s+en\s+google)?\s+(.+)/))){
+    go('Google','https://www.google.com/search?q='+encodeURIComponent(m[1]));return;
+  }
+  if(/abre|abrir|ve a|ir a|entra a|entra en/.test(n)){
+    for(var k in apps){if(n.indexOf(k)>-1){go(k,apps[k]);return;}}
+  }
   if(/hora/.test(n)){say('Son las '+new Date().toLocaleTimeString('es',{hour:'numeric',minute:'2-digit'})+'.');}
   else if(/fecha|que dia|dia es/.test(n)){say('Hoy es '+new Date().toLocaleDateString('es',{weekday:'long',day:'numeric',month:'long'})+'.');}
   else if(/interfaz|panel|muestrame/.test(n)){hud.classList.add('on');say('Aquí está mi interfaz.');}
   else if(/oculta|cierra|quita/.test(n)){hud.classList.remove('on');say('Listo, la oculté.');}
   else if(/bateria/.test(n)){say(batt?'Tu batería está al '+Math.round(batt.level*100)+' por ciento.':'No puedo leer la batería en este navegador.');}
   else if(/chiste/.test(n)){say(jokes[Math.floor(Math.random()*jokes.length)]);}
-  else if(/hola|buenas|que tal/.test(n)){say('Hola. Aquí estoy.');}
-  else{say('Todavía no sé hacer eso. Con una conexión a Claude podría responderte.');}
+  else if(/dado/.test(n)){say('Salió el '+(1+Math.floor(Math.random()*6))+'.');}
+  else if(/moneda|cara o cruz/.test(n)){say(Math.random()<0.5?'Salió cara.':'Salió cruz.');}
+  else if(/gracias/.test(n)){say('De nada.');}
+  else if(/como estas|que tal/.test(n)){say('Funcionando al cien por ciento.');}
+  else if(/quien eres|como te llamas/.test(n)){say('Soy Jarvis, tu asistente.');}
+  else if(/hola|buenas/.test(n)){say('Hola. Aquí estoy.');}
+  else{say('No entendí eso. Di “ayuda” para ver lo que sé hacer.');}
 }
 var rec=null;
 function listen(){
